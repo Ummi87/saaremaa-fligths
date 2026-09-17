@@ -1,0 +1,40 @@
+name: Kogu lennuliikluse andmeid
+
+on:
+  schedule:
+    # Saaremaa bbox pindala on 1.89 sq°, seega /states/all maksab 1 krediidi.
+    # 5-minutiline intervall = kuni 288 krediiti päevas, mis mahub ka anonüümsesse 400 limiiti.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Laadi hoidla
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Seadista Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Kogu uus snapshot
+        env:
+          OPENSKY_CLIENT_ID: ${{ secrets.OPENSKY_CLIENT_ID }}
+          OPENSKY_CLIENT_SECRET: ${{ secrets.OPENSKY_CLIENT_SECRET }}
+        run: node scripts/fetch.js
+      - name: Salvesta muutunud andmed
+        run: |
+          if git diff --quiet -- data/flights_24h.json; then
+            echo "Andmefailis muudatusi ei ole."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/flights_24h.json
+          git commit -m "data: uuenda lennuliikluse snapshot"
+          git push
