@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="et">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Saaremaa õhuruumi lennukite ajalugu ja asukohad." />
+    <title>Saaremaa lennujälgija</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQq+gB+fC+zLWz4GScTCIJnZUT0l8p5fAWzXfbY+wUu0M9u0PpN8qsCF0ayDPggO7bS4lCQq6Q==" crossorigin="" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="map-section" aria-label="Lennukite kaart">
+        <div id="map"></div>
+        <header class="brand-panel">
+          <div class="brand-mark" aria-hidden="true">✦</div>
+          <div>
+            <h1>Saaremaa lennujälgija</h1>
+            <p id="data-status">Laen lennuliikluse andmeid…</p>
+          </div>
+        </header>
+
+        <aside class="legend" aria-label="Kaardi legend">
+          <span><i class="legend-plane"></i> Lennuk</span>
+          <span><i class="legend-trail"></i> Senine trajektoor</span>
+        </aside>
+
+        <section class="timeline-panel" aria-label="Ajajoon">
+          <div class="time-row">
+            <button id="play-button" class="play-button" type="button" aria-label="Esita ajajoon" aria-pressed="false" disabled>
+              <span id="play-icon" aria-hidden="true">▶</span><span id="play-label">Esita</span>
+            </button>
+            <time id="selected-time" datetime="">—</time>
+            <span id="snapshot-summary" class="snapshot-summary">0 lennukit</span>
+          </div>
+          <input id="time-slider" type="range" min="0" max="0" value="0" step="1" aria-label="Valitud ajahetk" disabled />
+          <div class="range-labels"><span id="range-start">—</span><span id="range-end">—</span></div>
+        </section>
+      </section>
+
+      <aside id="details-panel" class="details-panel" aria-live="polite">
+        <div class="details-heading">
+          <div>
+            <p class="panel-kicker">Valitud lend</p>
+            <h2 id="flight-title">Vali lennuk</h2>
+          </div>
+          <span id="flight-state" class="state-badge">—</span>
+        </div>
+        <p id="flight-subtitle" class="flight-subtitle">Klõpsa kaardil lennuki ikoonil, et näha andmeid.</p>
+        <dl id="flight-details" class="flight-details">
+          <div><dt>ICAO24</dt><dd>—</dd></div>
+          <div><dt>Kõrgus</dt><dd>—</dd></div>
+          <div><dt>Kiirus</dt><dd>—</dd></div>
+          <div><dt>Suund</dt><dd>—</dd></div>
+          <div><dt>Vertikaalkiirus</dt><dd>—</dd></div>
+          <div><dt>Päritolu</dt><dd>Teadmata</dd></div>
+          <div><dt>Sihtkoht</dt><dd>Teadmata</dd></div>
+        </dl>
+        <p class="data-note">Andmed pärinevad OpenSky Networkist. Asukoht ja kõrgus võivad olla viivitusega või puududa.</p>
+      </aside>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBoOtMPO2gA1H7cJm4ltG1oS0iIKQ3OQnA0DraI7OKp1A==" crossorigin=""></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
