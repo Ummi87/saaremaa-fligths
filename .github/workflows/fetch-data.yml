@@ -7,6 +7,12 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
+# Vältida sama andmefaili paralleelset pushimist ja sellest tekkivat non-fast-forward viga.
+# Kui mitu käivitust koguneb järjekorda, jääb töösse kõige värskem.
+concurrency:
+  group: flight-data-main
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
