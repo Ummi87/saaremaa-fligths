@@ -50,6 +50,39 @@
   const shortTime = value => new Intl.DateTimeFormat("et-EE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Tallinn" }).format(new Date(value));
   const isValidDate = value => Number.isFinite(Date.parse(value || ""));
 
+  function projectedIslandEntry(snapshot) {
+    if (!liveMode || !snapshot || !isValidDate(snapshot.timestamp)) return null;
+    const ageMs = Date.now() - Date.parse(snapshot.timestamp);
+    if (ageMs < -5 * 60 * 1000 || ageMs > 15 * 60 * 1000) return null;
+    const zone = config.overflightZone || { lat: 58.36, lon: 22.55, radiusKm: 34 };
+    const latitudeScale = 111.32 * Math.cos(zone.lat * Math.PI / 180);
+    const candidates = [];
+    for (const aircraft of snapshot.aircraft || []) {
+      if (aircraft.on_ground || !Number.isFinite(aircraft.lat) || !Number.isFinite(aircraft.lon)) continue;
+      if (!Number.isFinite(aircraft.velocity_ms) || aircraft.velocity_ms < 35 || !Number.isFinite(aircraft.heading_deg)) continue;
+      const x = (aircraft.lon - zone.lon) * latitudeScale;
+      const y = (aircraft.lat - zone.lat) * 111.32;
+      const speedKmS = aircraft.velocity_ms / 1000;
+      const headingRad = aircraft.heading_deg * Math.PI / 180;
+      const vx = Math.sin(headingRad) * speedKmS;
+      const vy = Math.cos(headingRad) * speedKmS;
+      const distance = Math.hypot(x, y);
+      if (distance <= zone.radiusKm) continue;
+      const a = vx * vx + vy * vy;
+      const b = 2 * (x * vx + y * vy);
+      const c = x * x + y * y - zone.radiusKm * zone.radiusKm;
+      const discriminant = b * b - 4 * a * c;
+      if (discriminant < 0) continue;
+      const root = Math.sqrt(discriminant);
+      const times = [(-b - root) / (2 * a), (-b + root) / (2 * a)].filter(value => value >= 0);
+      if (!times.length) continue;
+      const seconds = Math.min(...times);
+      if (seconds > 45 * 60) continue;
+      candidates.push({ aircraft, seconds, timestamp: Date.parse(snapshot.timestamp) + seconds * 1000 });
+    }
+    return candidates.sort((a, b) => a.seconds - b.seconds)[0] || null;
+  }
+
   function planeName(aircraft) {
     return aircraft.callsign || aircraft.flight_icao || aircraft.flight_iata || aircraft.icao24 || "Tundmatu lennuk";
   }
@@ -125,6 +158,15 @@
       elements.lastRoute.textContent = "—";
     }
 
+    const latestSnapshot = data.snapshots.at(-1);
+    const projected = projectedIslandEntry(latestSnapshot);
+    if (projected) {
+      elements.nextTitle.textContent = planeName(projected.aircraft);
+      elements.nextMeta.textContent = `Umbes ${Math.max(1, Math.round(projected.seconds / 60))} minuti pärast · ${displayTime(projected.timestamp)}`;
+      elements.nextRoute.textContent = `${routeText(projected.aircraft)} · OpenSky trajektoori põhine hinnang`;
+      return;
+    }
+
     const now = Date.now();
     const future = [];
     for (const item of observations) {
@@ -144,7 +186,7 @@
     } else {
       elements.nextTitle.textContent = "Ootame uut live-andmepunkti";
       elements.nextMeta.textContent = "Tulevast üle Saaremaa lendu pole hetkel graafikuandmetes.";
-      elements.nextRoute.textContent = "Live-vaade kontrollib andmeid automaatselt.";
+      elements.nextRoute.textContent = "Live-vaade kontrollib värsket OpenSky trajektoori automaatselt.";
     }
   }
 
