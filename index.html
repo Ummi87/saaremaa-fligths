@@ -33,6 +33,9 @@
             <button id="play-button" class="play-button" type="button" aria-label="Esita ajajoon" aria-pressed="false" disabled>
               <span id="play-icon" aria-hidden="true">▶</span><span id="play-label">Esita</span>
             </button>
+            <button id="live-button" class="live-button active" type="button" aria-label="Lülita live-vaade sisse või välja" aria-pressed="true">
+              <span class="live-dot" aria-hidden="true"></span><span id="live-label">Live sees</span>
+            </button>
             <time id="selected-time" datetime="">—</time>
             <span id="snapshot-summary" class="snapshot-summary">0 lennukit</span>
           </div>
@@ -42,6 +45,26 @@
       </section>
 
       <aside id="details-panel" class="details-panel" aria-live="polite">
+        <section class="overflight-panel" aria-label="Saaremaa õhuruumi ülevaade">
+          <div class="overview-header">
+            <p class="panel-kicker">Õhuruumi ülevaade</p>
+            <span class="live-status"><i class="live-dot" aria-hidden="true"></i> Live-valmis</span>
+          </div>
+          <div class="overflight-grid">
+            <article class="overflight-card last">
+              <p class="overflight-label">Viimane üle lennanud</p>
+              <strong id="last-overflight-title">Laen andmeid…</strong>
+              <span id="last-overflight-meta">—</span>
+              <small id="last-overflight-route">—</small>
+            </article>
+            <article class="overflight-card next">
+              <p class="overflight-label">Järgmine eeldatav lend</p>
+              <strong id="next-overflight-title">Laen andmeid…</strong>
+              <span id="next-overflight-meta">—</span>
+              <small id="next-overflight-route">—</small>
+            </article>
+          </div>
+        </section>
         <div class="details-heading">
           <div>
             <p class="panel-kicker">Valitud lend</p>
