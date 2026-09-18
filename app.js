@@ -3,12 +3,27 @@
 
   const config = window.FLIGHT_CONFIG;
   const elements = {
-    status: document.querySelector("#data-status"), slider: document.querySelector("#time-slider"),
-    time: document.querySelector("#selected-time"), start: document.querySelector("#range-start"),
-    end: document.querySelector("#range-end"), summary: document.querySelector("#snapshot-summary"),
-    play: document.querySelector("#play-button"), playIcon: document.querySelector("#play-icon"), playLabel: document.querySelector("#play-label"),
-    title: document.querySelector("#flight-title"), subtitle: document.querySelector("#flight-subtitle"),
-    state: document.querySelector("#flight-state"), detailRows: [...document.querySelectorAll("#flight-details dd")]
+    status: document.querySelector("#data-status"),
+    slider: document.querySelector("#time-slider"),
+    time: document.querySelector("#selected-time"),
+    start: document.querySelector("#range-start"),
+    end: document.querySelector("#range-end"),
+    summary: document.querySelector("#snapshot-summary"),
+    play: document.querySelector("#play-button"),
+    playIcon: document.querySelector("#play-icon"),
+    playLabel: document.querySelector("#play-label"),
+    live: document.querySelector("#live-button"),
+    liveLabel: document.querySelector("#live-label"),
+    title: document.querySelector("#flight-title"),
+    subtitle: document.querySelector("#flight-subtitle"),
+    state: document.querySelector("#flight-state"),
+    detailRows: [...document.querySelectorAll("#flight-details dd")],
+    lastTitle: document.querySelector("#last-overflight-title"),
+    lastMeta: document.querySelector("#last-overflight-meta"),
+    lastRoute: document.querySelector("#last-overflight-route"),
+    nextTitle: document.querySelector("#next-overflight-title"),
+    nextMeta: document.querySelector("#next-overflight-meta"),
+    nextRoute: document.querySelector("#next-overflight-route")
   };
 
   const map = L.map("map", { zoomControl: false, preferCanvas: true });
@@ -20,8 +35,11 @@
   let selectedIndex = 0;
   let selectedAircraft = null;
   let timer = null;
-  let markerLayer = L.layerGroup().addTo(map);
-  let trailLayer = L.layerGroup().addTo(map);
+  let liveTimer = null;
+  let liveMode = true;
+  const markerLayer = L.layerGroup().addTo(map);
+  const trailLayer = L.layerGroup().addTo(map);
+  const markers = new Map();
 
   const number = (value, digits = 0) => Number.isFinite(value) ? new Intl.NumberFormat("et-EE", { maximumFractionDigits: digits }).format(value) : "—";
   const altitude = value => Number.isFinite(value) ? `${number(value)} m / ${number(value * 3.28084)} ft` : "—";
@@ -30,11 +48,26 @@
   const heading = value => Number.isFinite(value) ? `${number(value)}°` : "—";
   const displayTime = value => new Intl.DateTimeFormat("et-EE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Tallinn" }).format(new Date(value));
   const shortTime = value => new Intl.DateTimeFormat("et-EE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Tallinn" }).format(new Date(value));
+  const isValidDate = value => Number.isFinite(Date.parse(value || ""));
+
+  function planeName(aircraft) {
+    return aircraft.callsign || aircraft.flight_icao || aircraft.flight_iata || aircraft.icao24 || "Tundmatu lennuk";
+  }
+
+  function routeText(aircraft) {
+    const origin = aircraft.origin_iata || aircraft.origin;
+    const destination = aircraft.destination_iata || aircraft.destination;
+    if (origin && destination) return `${origin} → ${destination}`;
+    if (origin) return `Algus ${origin}`;
+    if (destination) return `Sihtkoht ${destination}`;
+    return "Marsruut teadmata";
+  }
 
   function planeIcon(deg) {
-    // The ✈ glyph points east at 0°. OpenSky true_track is measured clockwise from north.
+    // Leaflet marker points east at 0°. OpenSky true_track is clockwise from north.
     const rotation = Number.isFinite(deg) ? deg - 90 : 0;
-    return L.divIcon({ className: "plane-icon", iconSize: [30, 30], iconAnchor: [15, 15], html: `<span class="plane-symbol" style="transform:rotate(${rotation}deg)">✈</span>` });
+    const liveClass = liveMode ? " live-plane" : "";
+    return L.divIcon({ className: `plane-icon${liveClass}`, iconSize: [30, 30], iconAnchor: [15, 15], html: `<span class="plane-symbol" style="transform:rotate(${rotation}deg)">✈</span>` });
   }
 
   function clearDetails() {
@@ -47,12 +80,72 @@
 
   function showDetails(aircraft) {
     selectedAircraft = aircraft.icao24;
-    elements.title.textContent = aircraft.callsign || "Tundmatu kutsung";
+    elements.title.textContent = planeName(aircraft);
     elements.subtitle.textContent = `Viimane valitud asukoht ${displayTime(data.snapshots[selectedIndex].timestamp)}.`;
     elements.state.textContent = aircraft.on_ground ? "Maal" : "Õhus";
     elements.state.className = `state-badge ${aircraft.on_ground ? "ground" : "airborne"}`;
-    const values = [aircraft.icao24 || "—", altitude(aircraft.altitude_m), speed(aircraft.velocity_ms), heading(aircraft.heading_deg), verticalSpeed(aircraft.vertical_rate_ms), aircraft.airline_name || aircraft.airline_icao || "Teadmata", aircraft.origin || "Teadmata", aircraft.destination || "Teadmata"];
+    const values = [
+      aircraft.icao24 || "—",
+      altitude(aircraft.altitude_m),
+      speed(aircraft.velocity_ms),
+      heading(aircraft.heading_deg),
+      verticalSpeed(aircraft.vertical_rate_ms),
+      aircraft.airline_name || aircraft.airline_icao || "Teadmata",
+      aircraft.origin || aircraft.origin_iata || "Teadmata",
+      aircraft.destination || aircraft.destination_iata || "Teadmata"
+    ];
     elements.detailRows.forEach((row, index) => row.textContent = values[index]);
+  }
+
+  function allObservations() {
+    const observations = [];
+    for (const snapshot of data.snapshots || []) {
+      for (const aircraft of snapshot.aircraft || []) {
+        observations.push({ aircraft, timestamp: snapshot.timestamp });
+      }
+    }
+    return observations;
+  }
+
+  function updateOverflightSummary() {
+    if (!data) return;
+    const observations = allObservations();
+    const airborne = observations
+      .filter(item => !item.aircraft.on_ground)
+      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+    const last = airborne.at(-1);
+
+    if (last) {
+      elements.lastTitle.textContent = planeName(last.aircraft);
+      elements.lastMeta.textContent = `${displayTime(last.timestamp)} · ${last.aircraft.airline_name || last.aircraft.airline_icao || "Lennufirma teadmata"}`;
+      elements.lastRoute.textContent = routeText(last.aircraft);
+    } else {
+      elements.lastTitle.textContent = "Andmed puuduvad";
+      elements.lastMeta.textContent = "Ühtegi õhus olevat lennukit pole tuvastatud.";
+      elements.lastRoute.textContent = "—";
+    }
+
+    const now = Date.now();
+    const future = [];
+    for (const item of observations) {
+      const aircraft = item.aircraft;
+      for (const [kind, field] of [["väljumine", "departure_scheduled"], ["saabumine", "arrival_scheduled"]]) {
+        if (!isValidDate(aircraft[field])) continue;
+        const timestamp = Date.parse(aircraft[field]);
+        if (timestamp > now) future.push({ aircraft, timestamp, kind });
+      }
+    }
+    future.sort((a, b) => a.timestamp - b.timestamp);
+    const next = future[0];
+    if (next) {
+      elements.nextTitle.textContent = planeName(next.aircraft);
+      elements.nextMeta.textContent = `${displayTime(next.timestamp)} · graafiku ${next.kind}`;
+      elements.nextRoute.textContent = `${routeText(next.aircraft)} · aeg on eeldatav, mitte täpne ülelennuhetk`;
+    } else {
+      elements.nextTitle.textContent = "Ootame uut live-andmepunkti";
+      elements.nextMeta.textContent = "Tulevast üle Saaremaa lendu pole hetkel graafikuandmetes.";
+      elements.nextRoute.textContent = "Live-vaade kontrollib andmeid automaatselt.";
+    }
   }
 
   function getTrails(maxIndex) {
@@ -67,20 +160,61 @@
     return tracks;
   }
 
+  function animateMarker(marker, from, to) {
+    if (!from || !to || !liveMode) {
+      marker.setLatLng(to);
+      return;
+    }
+    const duration = Math.min(config.markerAnimationMs || 900, 900);
+    const started = performance.now();
+    const frame = now => {
+      const progress = Math.min(1, (now - started) / duration);
+      const eased = progress * (2 - progress);
+      marker.setLatLng([
+        from[0] + (to[0] - from[0]) * eased,
+        from[1] + (to[1] - from[1]) * eased
+      ]);
+      if (progress < 1) window.requestAnimationFrame(frame);
+    };
+    window.requestAnimationFrame(frame);
+  }
+
   function render() {
     if (!data) return;
     const snapshot = data.snapshots[selectedIndex];
     const aircraft = (snapshot.aircraft || []).filter(plane => Number.isFinite(plane.lat) && Number.isFinite(plane.lon));
-    markerLayer.clearLayers(); trailLayer.clearLayers();
+    const visible = new Set();
     const trails = getTrails(selectedIndex);
+    trailLayer.clearLayers();
     trails.forEach((points, icao24) => {
-      if (points.length > 1) L.polyline(points, { color: icao24 === selectedAircraft ? "#ffe0a8" : "#ffb454", weight: 2, opacity: icao24 === selectedAircraft ? .95 : .55 }).addTo(trailLayer);
+      if (points.length > 1) L.polyline(points, { color: icao24 === selectedAircraft ? "#ffe0a8" : "#ffb454", weight: 2, opacity: icao24 === selectedAircraft ? .95 : .55, className: "flight-trail" }).addTo(trailLayer);
     });
+
     aircraft.forEach(plane => {
-      const marker = L.marker([plane.lat, plane.lon], { icon: planeIcon(plane.heading_deg), keyboard: true, title: plane.callsign || plane.icao24 });
-      marker.on("click", () => { showDetails(plane); render(); });
-      marker.addTo(markerLayer);
+      const id = plane.icao24 || plane.callsign;
+      if (!id) return;
+      const position = [plane.lat, plane.lon];
+      let marker = markers.get(id);
+      if (!marker) {
+        marker = L.marker(position, { icon: planeIcon(plane.heading_deg), keyboard: true, title: planeName(plane) });
+        marker.addTo(markerLayer);
+        markers.set(id, marker);
+      } else {
+        animateMarker(marker, [marker.getLatLng().lat, marker.getLatLng().lng], position);
+        marker.setIcon(planeIcon(plane.heading_deg));
+      }
+      marker.options.title = planeName(plane);
+      marker.off("click").on("click", () => { showDetails(plane); render(); });
+      visible.add(id);
     });
+
+    for (const [id, marker] of markers) {
+      if (!visible.has(id)) {
+        markerLayer.removeLayer(marker);
+        markers.delete(id);
+      }
+    }
+
     elements.slider.value = selectedIndex;
     elements.time.dateTime = snapshot.timestamp;
     elements.time.textContent = displayTime(snapshot.timestamp);
@@ -89,35 +223,83 @@
       const current = aircraft.find(plane => plane.icao24 === selectedAircraft);
       if (current) showDetails(current); else clearDetails();
     }
+    updateOverflightSummary();
   }
 
   function stopPlayback() {
     if (timer) window.clearInterval(timer);
-    timer = null; elements.play.setAttribute("aria-pressed", "false"); elements.playIcon.textContent = "▶"; elements.playLabel.textContent = "Esita";
+    timer = null;
+    elements.play.setAttribute("aria-pressed", "false");
+    elements.playIcon.textContent = "▶";
+    elements.playLabel.textContent = "Esita";
   }
+
   function togglePlayback() {
     if (timer) return stopPlayback();
+    liveMode = false;
+    updateLiveButton();
     if (selectedIndex >= data.snapshots.length - 1) selectedIndex = 0;
-    timer = window.setInterval(() => { if (selectedIndex >= data.snapshots.length - 1) return stopPlayback(); selectedIndex += 1; render(); }, config.playbackIntervalMs);
-    elements.play.setAttribute("aria-pressed", "true"); elements.playIcon.textContent = "Ⅱ"; elements.playLabel.textContent = "Paus";
+    timer = window.setInterval(() => {
+      if (selectedIndex >= data.snapshots.length - 1) return stopPlayback();
+      selectedIndex += 1;
+      render();
+    }, config.playbackIntervalMs);
+    elements.play.setAttribute("aria-pressed", "true");
+    elements.playIcon.textContent = "Ⅱ";
+    elements.playLabel.textContent = "Paus";
   }
+
+  function updateLiveButton() {
+    elements.live.setAttribute("aria-pressed", String(liveMode));
+    elements.live.classList.toggle("active", liveMode);
+    elements.liveLabel.textContent = liveMode ? "Live sees" : "Live";
+  }
+
+  async function loadData() {
+    const response = await fetch(`${config.dataUrl}?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const raw = await response.json();
+    if (!raw || !Array.isArray(raw.snapshots) || raw.snapshots.length === 0) throw new Error("Puuduvad kasutatavad snapshots.");
+    data = raw;
+    selectedIndex = liveMode ? data.snapshots.length - 1 : Math.min(selectedIndex, data.snapshots.length - 1);
+    elements.slider.max = data.snapshots.length - 1;
+    elements.slider.disabled = false;
+    elements.play.disabled = false;
+    elements.start.textContent = shortTime(data.snapshots[0].timestamp);
+    elements.end.textContent = shortTime(data.snapshots.at(-1).timestamp);
+    elements.status.textContent = `${liveMode ? "LIVE · " : ""}Uuendatud ${displayTime(data.updated_at || data.snapshots.at(-1).timestamp)}`;
+    elements.status.style.color = "";
+    render();
+  }
+
+  function setLiveMode(enabled) {
+    liveMode = enabled;
+    stopPlayback();
+    updateLiveButton();
+    if (liveMode && data) {
+      selectedIndex = data.snapshots.length - 1;
+      render();
+      loadData().catch(error => setError(`Live-uuendus ebaõnnestus: ${error.message}`));
+    }
+  }
+
   function setError(message) {
     elements.status.textContent = message;
     elements.status.style.color = "#ffb454";
   }
-  function initialise(raw) {
-    if (!raw || !Array.isArray(raw.snapshots) || raw.snapshots.length === 0) throw new Error("Puuduvad kasutatavad snapshots.");
-    data = raw;
-    selectedIndex = data.snapshots.length - 1;
-    elements.slider.max = data.snapshots.length - 1;
-    elements.slider.disabled = false; elements.play.disabled = false;
-    elements.start.textContent = shortTime(data.snapshots[0].timestamp);
-    elements.end.textContent = shortTime(data.snapshots.at(-1).timestamp);
-    elements.status.textContent = `Uuendatud ${displayTime(data.updated_at || data.snapshots.at(-1).timestamp)}`;
-    render();
-  }
 
-  elements.slider.addEventListener("input", event => { stopPlayback(); selectedIndex = Number(event.target.value); render(); });
+  elements.slider.addEventListener("input", event => {
+    stopPlayback();
+    liveMode = false;
+    updateLiveButton();
+    selectedIndex = Number(event.target.value);
+    render();
+  });
   elements.play.addEventListener("click", togglePlayback);
-  fetch(config.dataUrl, { cache: "no-store" }).then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); }).then(initialise).catch(error => { console.error(error); setError("Andmeid ei õnnestunud laadida."); });
+  elements.live.addEventListener("click", () => setLiveMode(!liveMode));
+  updateLiveButton();
+  loadData().catch(error => { console.error(error); setError("Andmeid ei õnnestunud laadida."); });
+  liveTimer = window.setInterval(() => {
+    if (liveMode) loadData().catch(error => setError(`Live-uuendus ebaõnnestus: ${error.message}`));
+  }, config.liveRefreshMs || 60000);
 }());
