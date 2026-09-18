@@ -69,7 +69,7 @@ jobs:
             echo "::error::AVIATIONSTACK_API_KEY puudub või pole sellele töövoole kättesaadav."
             exit 1
           fi
-          response="$(curl -sS -G "https://api.aviationstack.com/v1/flights"             --data-urlencode "access_key=$AVIATIONSTACK_API_KEY"             --data-urlencode "flight_icao=FIN1AB")"
+          response="$(curl -sS -G "https://api.apilayer.net/aviationstack/v1/flights"             --data-urlencode "access_key=$AVIATIONSTACK_API_KEY"             --data-urlencode "flight_icao=FIN1AB")"
           echo "$response" | jq '{success: (.success // true), matches: (if .data then (.data | length) else 0 end), error: (.error // null)}'
           if echo "$response" | jq -e '.error != null or .success == false' >/dev/null; then
             exit 1
