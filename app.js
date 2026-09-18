@@ -23,7 +23,9 @@
     lastRoute: document.querySelector("#last-overflight-route"),
     nextTitle: document.querySelector("#next-overflight-title"),
     nextMeta: document.querySelector("#next-overflight-meta"),
-    nextRoute: document.querySelector("#next-overflight-route")
+    nextRoute: document.querySelector("#next-overflight-route"),
+    lastUpdate: document.querySelector("#last-update-time"),
+    nextUpdate: document.querySelector("#next-update-time")
   };
 
   const map = L.map("map", { zoomControl: false, preferCanvas: true });
@@ -85,6 +87,25 @@
 
   function planeName(aircraft) {
     return aircraft.callsign || aircraft.flight_icao || aircraft.flight_iata || aircraft.icao24 || "Tundmatu lennuk";
+  }
+
+  function formatRemaining(milliseconds) {
+    const seconds = Math.max(0, Math.round(milliseconds / 1000));
+    if (seconds < 60) return `${seconds} sek pärast`;
+    return `${Math.ceil(seconds / 60)} min pärast`;
+  }
+
+  function updateRefreshInfo() {
+    if (!data) return;
+    const lastValue = data.updated_at || data.snapshots.at(-1)?.timestamp;
+    const lastMs = Date.parse(lastValue || "");
+    if (!Number.isFinite(lastMs)) return;
+    const intervalMs = (config.snapshotIntervalMinutes || 5) * 60 * 1000;
+    const nextMs = lastMs + intervalMs;
+    elements.lastUpdate.textContent = displayTime(lastValue);
+    elements.nextUpdate.textContent = nextMs > Date.now()
+      ? `${shortTime(nextMs)} (${formatRemaining(nextMs - Date.now())})`
+      : "oodatud kohe";
   }
 
   function routeText(aircraft) {
@@ -311,6 +332,7 @@
     elements.end.textContent = shortTime(data.snapshots.at(-1).timestamp);
     elements.status.textContent = `${liveMode ? "LIVE · " : ""}Uuendatud ${displayTime(data.updated_at || data.snapshots.at(-1).timestamp)}`;
     elements.status.style.color = "";
+    updateRefreshInfo();
     render();
   }
 
@@ -341,6 +363,7 @@
   elements.live.addEventListener("click", () => setLiveMode(!liveMode));
   updateLiveButton();
   loadData().catch(error => { console.error(error); setError("Andmeid ei õnnestunud laadida."); });
+  window.setInterval(updateRefreshInfo, 1000);
   liveTimer = window.setInterval(() => {
     if (liveMode) loadData().catch(error => setError(`Live-uuendus ebaõnnestus: ${error.message}`));
   }, config.liveRefreshMs || 60000);
