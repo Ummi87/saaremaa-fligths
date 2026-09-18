@@ -51,7 +51,7 @@
     elements.subtitle.textContent = `Viimane valitud asukoht ${displayTime(data.snapshots[selectedIndex].timestamp)}.`;
     elements.state.textContent = aircraft.on_ground ? "Maal" : "Õhus";
     elements.state.className = `state-badge ${aircraft.on_ground ? "ground" : "airborne"}`;
-    const values = [aircraft.icao24 || "—", altitude(aircraft.altitude_m), speed(aircraft.velocity_ms), heading(aircraft.heading_deg), verticalSpeed(aircraft.vertical_rate_ms), aircraft.origin || "Teadmata", aircraft.destination || "Teadmata"];
+    const values = [aircraft.icao24 || "—", altitude(aircraft.altitude_m), speed(aircraft.velocity_ms), heading(aircraft.heading_deg), verticalSpeed(aircraft.vertical_rate_ms), aircraft.airline_name || aircraft.airline_icao || "Teadmata", aircraft.origin || "Teadmata", aircraft.destination || "Teadmata"];
     elements.detailRows.forEach((row, index) => row.textContent = values[index]);
   }
 
