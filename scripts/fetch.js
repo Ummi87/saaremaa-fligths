@@ -13,7 +13,7 @@ const WINDOW_MS = 24 * 60 * 60 * 1000;
 const ROUTE_CACHE_MS = 24 * 60 * 60 * 1000;
 const TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token";
 const STATES_URL = "https://opensky-network.org/api/states/all";
-const AVIATIONSTACK_URL = "https://api.aviationstack.com/v1/flights";
+const AVIATIONSTACK_URL = "https://api.apilayer.net/aviationstack/v1/flights";
 const ROUTE_KEYS = [
   "airline_name", "airline_iata", "airline_icao", "flight_iata", "flight_icao",
   "flight_status", "origin", "origin_iata", "destination", "destination_iata",
