@@ -154,7 +154,13 @@ input[type="range"] { width: 100%; accent-color: var(--radar); cursor: pointer; 
   0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgb(46 210 154 / 30%)); }
   50% { transform: scale(1.13); filter: drop-shadow(0 0 8px rgb(46 210 154 / 75%)); }
 }
-.live-plane .plane-symbol {
+.live-plane { position: relative; }
+.live-plane::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgb(46 210 154 / 65%);
+  border-radius: 50%;
   animation: plane-pulse 1.8s ease-in-out infinite;
 }
 .flight-trail {
