@@ -5,6 +5,7 @@ window.FLIGHT_CONFIG = {
   playbackIntervalMs: 700,
   liveRefreshMs: 60000,
   markerAnimationMs: 900,
+  overflightZone: { lat: 58.36, lon: 22.55, radiusKm: 34 },
   dataUrl: "data/flights_24h.json",
   mapAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 };
