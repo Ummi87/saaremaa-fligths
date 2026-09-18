@@ -6,6 +6,15 @@ on:
     # 5-minutiline intervall = kuni 288 krediiti päevas, mis mahub ka anonüümsesse 400 limiiti.
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Kas kogu uus snapshot või testi ainult Aviationstacki võtit?"
+        required: true
+        default: collect
+        type: choice
+        options:
+          - collect
+          - test
 
 # Vältida sama andmefaili paralleelset pushimist ja sellest tekkivat non-fast-forward viga.
 # Kui mitu käivitust koguneb järjekorda, jääb töösse kõige värskem.
@@ -18,6 +27,7 @@ permissions:
 
 jobs:
   fetch:
+    if: github.event_name == 'schedule' || inputs.mode == 'collect' || inputs.mode == ''
     runs-on: ubuntu-latest
     steps:
       - name: Laadi hoidla
@@ -45,3 +55,22 @@ jobs:
           git add data/flights_24h.json
           git commit -m "data: uuenda lennuliikluse snapshot"
           git push
+
+  test-aviationstack:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'test'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Testi Aviationstacki võtit
+        env:
+          AVIATIONSTACK_API_KEY: ${{ secrets.AVIATIONSTACK_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AVIATIONSTACK_API_KEY" ]; then
+            echo "::error::AVIATIONSTACK_API_KEY puudub või pole sellele töövoole kättesaadav."
+            exit 1
+          fi
+          response="$(curl -sS -G "https://api.aviationstack.com/v1/flights"             --data-urlencode "access_key=$AVIATIONSTACK_API_KEY"             --data-urlencode "flight_icao=FIN1AB")"
+          echo "$response" | jq '{success: (.success // true), matches: (if .data then (.data | length) else 0 end), error: (.error // null)}'
+          if echo "$response" | jq -e '.error != null or .success == false' >/dev/null; then
+            exit 1
+          fi
